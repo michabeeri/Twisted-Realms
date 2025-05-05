@@ -167,3 +167,18 @@ These MCPs enable:
 - **Vibe Coding**: Trellis, FLUX.1, MeshyAI, ElevenLabs, Suno, Blockade Labs enable AI-driven workflows.
 - **Licensing**: Verify commercial use. Free tiers have limits; paid tiers offer quality/volume.
 - **Community**: Three.js Discord, r/threejs for integration tips.
+
+## Phase 1 Folder Structure (Game Core Setup)
+
+- content/
+  - scenes/
+    - village/
+      - scene.json
+      - assets/
+        - village.png
+        - village_ambience.mp3
+        - player.png
+        - statue.png
+        - statue_glow.png
+        - statue_crumble.png
+        - thud.mp3
