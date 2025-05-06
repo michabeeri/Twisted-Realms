@@ -3,7 +3,10 @@ import Phaser from 'phaser';
 import { useInventoryStore } from '../stores/inventoryStore';
 import { useGameStateStore } from '../stores/gameStateStore';
 
-const SCENE_JSON_PATH = '/content/scenes/village/scene.json';
+interface SceneProps {
+  sceneId: string;
+}
+
 const CONFIG_JSON_PATH = '/content/config.json';
 
 interface AnimationDescriptor {
@@ -105,6 +108,8 @@ class VillageScene extends Phaser.Scene {
     sprite: Phaser.GameObjects.Sprite;
     interaction: VillageInteraction;
   } | null = null;
+  private lastDirection: string = 'system_idle';
+  private lastMoving: boolean = false;
 
   constructor() {
     super('VillageScene');
@@ -115,15 +120,18 @@ class VillageScene extends Phaser.Scene {
     this.load.on('loaderror', (file: Phaser.Loader.File) => {
       console.error('Asset load error:', file.key, file.src);
     });
-    this.load.json('scene', SCENE_JSON_PATH);
+    // @ts-expect-error: Phaser sys.settings.data is not typed but is used for passing sceneJsonPath
+    const sceneJsonPath =
+      this.sys.settings.data?.sceneJsonPath || '/content/scenes/village/scene.json';
+    this.load.json('scene', sceneJsonPath);
     this.load.json('config', CONFIG_JSON_PATH);
-    this.load.audio('soundtrack', '/content/scenes/village/assets/village_ambience.mp3');
-    this.load.image('background', '/content/scenes/village/assets/village.png');
-    this.load.image('cover', '/content/scenes/village/assets/village-cover.png');
-    this.load.audio('thud', '/content/scenes/village/assets/thud.mp3');
+    this.load.audio('soundtrack', '/content/' + 'scenes/village/assets/village_ambience.mp3');
+    this.load.image('background', '/content/' + 'scenes/village/assets/village.png');
+    this.load.image('cover', '/content/' + 'scenes/village/assets/village-cover.png');
+    this.load.audio('thud', '/content/' + 'scenes/village/assets/thud.mp3');
     this.load.image(
       'movement_matrix',
-      '/content/scenes/village/assets/village-movement-matrix.png'
+      '/content/' + 'scenes/village/assets/village-movement-matrix.png'
     );
     // Do NOT load player or interaction assets here
   }
@@ -171,8 +179,11 @@ class VillageScene extends Phaser.Scene {
       // Determine if this is a static image or spritesheet
       if (interaction.sprite && interaction.sprite.endsWith('.png')) {
         spriteKey = (interaction.sprite.split('/').pop() || '').replace('.png', '');
+        const spritePath = interaction.sprite.startsWith('/')
+          ? interaction.sprite
+          : '/content/' + interaction.sprite;
         if (!this.textures.exists(spriteKey)) {
-          this.load.image(spriteKey, interaction.sprite);
+          this.load.image(spriteKey, spritePath);
           await new Promise<void>((resolve) => {
             this.load.once('complete', () => resolve());
             this.load.start();
@@ -693,7 +704,18 @@ class VillageScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number) {
-    if (!this.player || !this.playerTarget) return;
+    if (!this.player || !this.playerTarget) {
+      // If not moving, update Zustand if needed
+      if (this.lastMoving !== false) {
+        useGameStateStore.getState().setPlayerMoving(false);
+        this.lastMoving = false;
+      }
+      if (this.lastDirection !== 'system_idle') {
+        useGameStateStore.getState().setPlayerDirection('system_idle');
+        this.lastDirection = 'system_idle';
+      }
+      return;
+    }
     const dx = this.playerTarget.x - this.player.x;
     const dy = this.playerTarget.y - this.player.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
@@ -707,11 +729,10 @@ class VillageScene extends Phaser.Scene {
       } else {
         this.playerMoving = false;
         // Play idle animation for last direction
-        this.playPlayerAnimation(
-          this.currentPlayerAnimType.startsWith('system_walk_')
-            ? this.currentPlayerAnimType.replace('system_walk_', 'system_')
-            : this.currentPlayerAnimType
-        );
+        const idleDir = this.currentPlayerAnimType.startsWith('system_walk_')
+          ? this.currentPlayerAnimType.replace('system_walk_', 'system_')
+          : this.currentPlayerAnimType;
+        this.playPlayerAnimation(idleDir);
         this.playerTarget = undefined;
         // If there is a pending interaction, trigger it now
         if (this.pendingInteraction) {
@@ -720,6 +741,15 @@ class VillageScene extends Phaser.Scene {
             this.pendingInteraction.interaction
           );
           this.pendingInteraction = null;
+        }
+        // Update Zustand for idle
+        if (this.lastMoving !== false) {
+          useGameStateStore.getState().setPlayerMoving(false);
+          this.lastMoving = false;
+        }
+        if (this.lastDirection !== idleDir) {
+          useGameStateStore.getState().setPlayerDirection(idleDir);
+          this.lastDirection = idleDir;
         }
         return;
       }
@@ -732,13 +762,21 @@ class VillageScene extends Phaser.Scene {
     const nextY = this.player.y + moveY;
     if (!this.isWalkable(nextX, nextY)) {
       this.playerMoving = false;
-      this.playPlayerAnimation(
-        this.currentPlayerAnimType.startsWith('system_walk_')
-          ? this.currentPlayerAnimType.replace('system_walk_', 'system_')
-          : this.currentPlayerAnimType
-      );
+      const idleDir = this.currentPlayerAnimType.startsWith('system_walk_')
+        ? this.currentPlayerAnimType.replace('system_walk_', 'system_')
+        : this.currentPlayerAnimType;
+      this.playPlayerAnimation(idleDir);
       this.playerTarget = undefined;
       this.path = [];
+      // Update Zustand for idle
+      if (this.lastMoving !== false) {
+        useGameStateStore.getState().setPlayerMoving(false);
+        this.lastMoving = false;
+      }
+      if (this.lastDirection !== idleDir) {
+        useGameStateStore.getState().setPlayerDirection(idleDir);
+        this.lastDirection = idleDir;
+      }
       return;
     }
     this.player.x = nextX;
@@ -759,10 +797,19 @@ class VillageScene extends Phaser.Scene {
       this.currentPlayerAnimType = direction;
       this.playPlayerAnimation(direction);
     }
+    // Update Zustand for moving
+    if (this.lastMoving !== true) {
+      useGameStateStore.getState().setPlayerMoving(true);
+      this.lastMoving = true;
+    }
+    if (this.lastDirection !== direction) {
+      useGameStateStore.getState().setPlayerDirection(direction);
+      this.lastDirection = direction;
+    }
   }
 }
 
-export function Scene() {
+export function Scene({ sceneId }: SceneProps) {
   const gameRef = useRef<HTMLDivElement>(null);
   const phaserSceneRef = useRef<VillageScene | null>(null);
   const inventory = useInventoryStore((s) => s.inventory);
@@ -804,6 +851,10 @@ export function Scene() {
       // Pass inventory and game state update callbacks
       villageScene.onInventoryUpdate = handleInventoryUpdate;
       villageScene.onGameStateUpdate = handleGameStateUpdate;
+      // Dynamically set the scene JSON path
+      const sceneJsonPath = `/content/scenes/${sceneId}/scene.json`;
+      // @ts-expect-error: Phaser sys.settings.data is not typed but is used for passing sceneJsonPath
+      villageScene.sys.settings.data = { sceneJsonPath };
       game = new Phaser.Game({
         type: Phaser.AUTO,
         width: 1280,
@@ -823,7 +874,7 @@ export function Scene() {
         game.destroy(true);
       }
     };
-  }, []);
+  }, [sceneId]);
 
   // Update interactions when inventory or game state changes
   useEffect(() => {
