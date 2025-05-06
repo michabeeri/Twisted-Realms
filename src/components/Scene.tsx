@@ -112,8 +112,7 @@ class VillageScene extends Phaser.Scene {
 
   preload() {
     console.log('Phaser preload() called');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    this.load.on('loaderror', (file: any) => {
+    this.load.on('loaderror', (file: Phaser.Loader.File) => {
       console.error('Asset load error:', file.key, file.src);
     });
     this.load.json('scene', SCENE_JSON_PATH);
@@ -126,7 +125,7 @@ class VillageScene extends Phaser.Scene {
       'movement_matrix',
       '/content/scenes/village/assets/village-movement-matrix.png'
     );
-    // Do NOT load player spritesheets or JSONs here
+    // Do NOT load player or interaction assets here
   }
 
   public setInitialState(state: { game_state: string; inventory: boolean[] }) {
@@ -157,70 +156,84 @@ class VillageScene extends Phaser.Scene {
     return true;
   }
 
-  private renderInteractions() {
+  private async renderInteractions() {
     if (!this.sceneData) return;
     const interactions = this.sceneData.interactions || [];
     // Remove old interaction sprites
     Object.values(this.interactionSprites).forEach((sprite) => sprite.destroy());
     this.interactionSprites = {};
-    interactions.forEach((interaction) => {
-      if (!this.matchesCondition(interaction.condition, this.currentState)) return;
+    for (const interaction of interactions) {
+      if (!this.matchesCondition(interaction.condition, this.currentState)) continue;
       const x = interaction.position?.x ?? 0;
       const y = interaction.position?.y ?? 0;
-      let spriteKey: string;
+      let spriteKey = '';
+      let isSpritesheet = false;
+      // Determine if this is a static image or spritesheet
       if (interaction.sprite && interaction.sprite.endsWith('.png')) {
-        // Use static image
         spriteKey = (interaction.sprite.split('/').pop() || '').replace('.png', '');
         if (!this.textures.exists(spriteKey)) {
           this.load.image(spriteKey, interaction.sprite);
-          this.load.once('complete', () => {
-            const sprite = this.add
-              .sprite(x, y, spriteKey, 0)
-              .setOrigin(0.5, 1)
-              .setInteractive({ useHandCursor: true })
-              .setDepth(1);
-            this.setupInteractionSprite(sprite, interaction);
-            this.interactionSprites[interaction.id] = sprite;
+          await new Promise<void>((resolve) => {
+            this.load.once('complete', () => resolve());
+            this.load.start();
           });
-          this.load.start();
-          return;
         }
-      } else {
-        // Use spritesheet (default to player spritesheet if needed)
-        spriteKey = '';
+      } else if (interaction.idle_animation && interaction.idle_animation.length > 0) {
+        // Use spritesheet from idle_animation
+        const anim = interaction.idle_animation[0];
+        const sheetPath = anim.spritesheet.startsWith('/')
+          ? anim.spritesheet
+          : '/content/' + anim.spritesheet;
+        spriteKey = (sheetPath.split('/').pop() || '').replace('.png', '');
+        isSpritesheet = true;
+        if (!this.textures.exists(spriteKey)) {
+          this.load.spritesheet(spriteKey, sheetPath, { frameWidth: 50, frameHeight: 100 });
+          const jsonPath = sheetPath.replace('.png', '.json');
+          this.load.json(spriteKey + '_json', jsonPath);
+          await new Promise<void>((resolve) => {
+            this.load.once('complete', () => resolve());
+            this.load.start();
+          });
+          // Create animations for this spritesheet
+          const asepriteJson = this.cache.json.get(spriteKey + '_json');
+          if (asepriteJson) {
+            this.createAsepriteAnimations(spriteKey, asepriteJson);
+          }
+        }
       }
-      if (!spriteKey) return; // Do not create sprite if no valid key
+      if (!spriteKey) continue;
       const sprite = this.add
         .sprite(x, y, spriteKey, 0)
         .setOrigin(0.5, 1)
         .setInteractive({ useHandCursor: true })
         .setDepth(1);
-      this.setupInteractionSprite(sprite, interaction);
+      this.setupInteractionSprite(sprite, interaction, isSpritesheet);
       this.interactionSprites[interaction.id] = sprite;
-    });
+    }
   }
 
   private setupInteractionSprite(
     sprite: Phaser.GameObjects.Sprite,
-    interaction: VillageInteraction
+    interaction: VillageInteraction,
+    isSpritesheet: boolean
   ) {
     // Idle animation and sound
-    if (interaction.idle_animation && interaction.idle_animation.length > 0) {
+    if (interaction.idle_animation && interaction.idle_animation.length > 0 && isSpritesheet) {
       this.playAsepriteAnimation(sprite, interaction.idle_animation[0]);
-      this.playInteractionSound('idle');
+      this.playInteractionSound();
     }
     // Hover animation
     sprite.on('pointerover', () => {
-      if (interaction.hover_animation && interaction.hover_animation.length > 0) {
+      if (interaction.hover_animation && interaction.hover_animation.length > 0 && isSpritesheet) {
         this.playAsepriteAnimation(sprite, interaction.hover_animation[0]);
-        this.playInteractionSound('hover');
+        this.playInteractionSound();
       }
     });
     sprite.on('pointerout', () => {
-      if (interaction.idle_animation && interaction.idle_animation.length > 0) {
+      if (interaction.idle_animation && interaction.idle_animation.length > 0 && isSpritesheet) {
         this.playAsepriteAnimation(sprite, interaction.idle_animation[0]);
-        this.playInteractionSound('idle');
-      } else {
+        this.playInteractionSound();
+      } else if (isSpritesheet) {
         sprite.anims.stop();
         sprite.setFrame(0);
         this.stopInteractionSound();
@@ -229,7 +242,6 @@ class VillageScene extends Phaser.Scene {
     // Click: use new click array format
     sprite.on('pointerdown', () => {
       console.log('Interaction clicked:', interaction.id);
-      // If player_location is defined, move player there first
       if (interaction.player_location) {
         const start = this.worldToGrid({
           x: Math.round(this.player!.x),
@@ -245,12 +257,10 @@ class VillageScene extends Phaser.Scene {
           this.playerMoving = true;
           this.pendingInteraction = { sprite, interaction };
         } else {
-          // If no path, do not trigger interaction
           console.log('No path to player_location for interaction:', interaction.id);
         }
         return;
       }
-      // Otherwise, trigger interaction immediately
       this.triggerInteraction(sprite, interaction);
     });
   }
@@ -278,7 +288,7 @@ class VillageScene extends Phaser.Scene {
         }
         if (interaction.idle_animation && interaction.idle_animation.length > 0) {
           this.playAsepriteAnimation(sprite, interaction.idle_animation[0]);
-          this.playInteractionSound('idle');
+          this.playInteractionSound();
         } else {
           sprite.setFrame(0);
           this.stopInteractionSound();
@@ -308,24 +318,42 @@ class VillageScene extends Phaser.Scene {
     }
   }
 
+  // Modular animation for both player and interaction sprites
   private playAsepriteAnimation(
-    _sprite: Phaser.GameObjects.Sprite, // eslint-disable-line @typescript-eslint/no-unused-vars
-    _anim: AnimationDescriptor, // eslint-disable-line @typescript-eslint/no-unused-vars
-    _onComplete?: () => void // eslint-disable-line @typescript-eslint/no-unused-vars
+    sprite: Phaser.GameObjects.Sprite,
+    anim: AnimationDescriptor,
+    onComplete?: () => void
   ) {
-    // TODO: Implement actual animation logic
+    const sheetPath = anim.spritesheet.startsWith('/')
+      ? anim.spritesheet
+      : '/content/' + anim.spritesheet;
+    const sheetKey = (sheetPath.split('/').pop() || '').replace('.png', '');
+    const animKey = `${sheetKey}_${anim.name}`;
+    if (this.anims.exists(animKey)) {
+      sprite.anims.play(animKey, true);
+      if (onComplete) {
+        sprite.on('animationcomplete', onComplete, this);
+      }
+    } else {
+      sprite.setFrame(0);
+      if (onComplete) onComplete();
+    }
   }
 
-  private playInteractionSound(
-    _type: 'idle' | 'hover' // eslint-disable-line @typescript-eslint/no-unused-vars
-  ) {
-    // TODO: Implement actual sound logic
+  // Modular sound handling for interactions
+  private playInteractionSound() {
+    this.stopInteractionSound();
+    // Example: play idle or hover sound if defined (extend as needed)
+    // if (type === 'idle' && this.idleSoundKey) { ... }
+    // if (type === 'hover' && this.hoverSoundKey) { ... }
   }
 
   private stopInteractionSound() {
-    // TODO: Implement actual sound stop logic
+    // Stop any currently playing interaction sound
+    // (extend as needed for your sound system)
   }
 
+  // Modular, accessible dialog overlay always on top
   private showDialog(text: string, buttonText: string, onClose: () => void) {
     // Remove any existing dialog
     if (this.dialogContainer) {
@@ -382,23 +410,43 @@ class VillageScene extends Phaser.Scene {
       console.error('Error accessing sceneData from cache:', err);
     }
     this.sceneData = sceneData;
-    console.log('sceneData (assigned):', this.sceneData);
     if (!this.sceneData) return;
-    this.add.text(10, 10, 'Scene loaded', { color: '#fff', fontSize: '24px' });
-    console.log('Adding background and player');
-    // Use scene dimensions for positioning
+    // Add background
     const width = this.sceneData.width || 1280;
     const height = this.sceneData.height || 720;
-    // Select background: first that matches or has no condition
-    const backgrounds = this.sceneData.backgrounds || [];
-    const bg = backgrounds.find((bg) => this.matchesCondition(bg.condition, this.currentState));
-    if (bg) {
-      this.background = this.add
-        .image(width / 2, height / 2, 'background')
+    this.background = this.add
+      .image(width / 2, height / 2, 'background')
+      .setOrigin(0.5, 0.5)
+      .setDepth(0);
+    // Enable click-to-move on background
+    this.background.setInteractive();
+    this.background.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (!this.player) return;
+      const start = this.worldToGrid({
+        x: Math.round(this.player.x),
+        y: Math.round(this.player.y),
+      });
+      const end = this.worldToGrid({
+        x: Math.round(pointer.worldX),
+        y: Math.round(pointer.worldY),
+      });
+      this.path = this.findPathCoarse(start, end).map((pt) => this.gridToWorld(pt));
+      if (this.path.length > 0) {
+        this.playerTarget = this.path.shift();
+        this.playerMoving = true;
+      } else {
+        this.playerTarget = undefined;
+        this.playerMoving = false;
+      }
+    });
+    // Add cover
+    if (this.sceneData.cover) {
+      this.cover = this.add
+        .image(width / 2, height / 2, 'cover')
         .setOrigin(0.5, 0.5)
-        .setDepth(0);
+        .setDepth(2);
     }
-    // Dynamically load player spritesheets and JSONs
+    // Load player assets from config
     const config = this.cache.json.get('config');
     if (config && config.player_animations) {
       for (const anim of config.player_animations) {
@@ -430,7 +478,7 @@ class VillageScene extends Phaser.Scene {
     }
     // Player
     const { x: px, y: py } = this.sceneData.player_position;
-    let playerSheetKey = 'statue_spritesheet';
+    let playerSheetKey = '';
     if (config && config.player_animations && config.player_animations.length > 0) {
       const firstAnim = config.player_animations[0];
       const firstSheetPath = firstAnim.spritesheet.startsWith('/')
@@ -442,34 +490,6 @@ class VillageScene extends Phaser.Scene {
     console.log('Player created:', { x: px, y: py, key: playerSheetKey });
     if (this.player) {
       this.playPlayerAnimation('system_idle');
-    }
-    // Cover layer
-    if (this.sceneData.cover) {
-      this.cover = this.add
-        .image(width / 2, height / 2, 'cover')
-        .setOrigin(0.5, 0.5)
-        .setDepth(2);
-    }
-    if (bg && this.background) {
-      this.background.setInteractive();
-      this.background.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-        const start = this.worldToGrid({
-          x: Math.round(this.player!.x),
-          y: Math.round(this.player!.y),
-        });
-        const end = this.worldToGrid({
-          x: Math.round(pointer.worldX),
-          y: Math.round(pointer.worldY),
-        });
-        this.path = this.findPathCoarse(start, end).map((pt) => this.gridToWorld(pt));
-        if (this.path.length > 0) {
-          this.playerTarget = this.path.shift();
-          this.playerMoving = true;
-        } else {
-          this.playerTarget = undefined;
-          this.playerMoving = false;
-        }
-      });
     }
     // Load movement matrix into ImageData
     if (this.sceneData.movement_matrix) {
@@ -574,6 +594,7 @@ class VillageScene extends Phaser.Scene {
     };
   }
 
+  // Efficient, robust pathfinding using coarse grid and pixel-perfect movement
   private findPathCoarse(
     start: { x: number; y: number },
     end: { x: number; y: number }
@@ -594,9 +615,7 @@ class VillageScene extends Phaser.Scene {
     let explored = 0;
     const SEARCH_LIMIT = 2000;
     while (openSet.size > 0) {
-      if (++explored > SEARCH_LIMIT) {
-        break;
-      }
+      if (++explored > SEARCH_LIMIT) break;
       let currentKey = '';
       let lowestF = Infinity;
       for (const key of openSet) {
