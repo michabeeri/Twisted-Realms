@@ -180,6 +180,7 @@ class VillageScene extends Phaser.Scene {
         const y = interaction.position?.y ?? 0;
         let spriteKey = '';
         let isSpritesheet = false;
+        let shouldCreateSprite = false;
         // Determine if this is a static image or spritesheet
         if (interaction.sprite && interaction.sprite.endsWith('.png')) {
           spriteKey = (interaction.sprite.split('/').pop() || '').replace('.png', '');
@@ -193,40 +194,42 @@ class VillageScene extends Phaser.Scene {
               this.load.start();
             });
           }
+          shouldCreateSprite = true;
         } else if (interaction.idle_animation && interaction.idle_animation.length > 0) {
           // Use spritesheet from idle_animation
           const anim = interaction.idle_animation[0];
-          const sheetPath = anim.spritesheet.startsWith('/')
-            ? anim.spritesheet
-            : '/content/' + anim.spritesheet;
-          spriteKey = (sheetPath.split('/').pop() || '').replace('.png', '');
-          isSpritesheet = true;
-          const jsonPath = sheetPath.replace('.png', '.json');
-          // Load the JSON first to get frame size
-          this.load.json(spriteKey + '_json', jsonPath);
-          await new Promise<void>((resolve) => {
-            this.load.once('complete', () => resolve());
-            this.load.start();
-          });
-          const asepriteJson = this.cache.json.get(spriteKey + '_json');
-          let frameWidth = 50;
-          let frameHeight = 100;
-          if (asepriteJson) {
-            const firstFrame = Object.values(asepriteJson.frames)[0] as AsepriteFrame;
-            frameWidth = firstFrame.frame.w;
-            frameHeight = firstFrame.frame.h;
-          }
-          this.load.spritesheet(spriteKey, sheetPath, { frameWidth, frameHeight });
-          await new Promise<void>((resolve) => {
-            this.load.once('complete', () => resolve());
-            this.load.start();
-          });
-          // Create animations for this spritesheet
-          if (asepriteJson) {
-            this.createAsepriteAnimations(spriteKey, asepriteJson);
+          if (anim.spritesheet && anim.spritesheet.endsWith('.png')) {
+            const sheetPath = anim.spritesheet.startsWith('/')
+              ? anim.spritesheet
+              : '/content/' + anim.spritesheet;
+            spriteKey = (sheetPath.split('/').pop() || '').replace('.png', '');
+            isSpritesheet = true;
+            const jsonPath = sheetPath.replace('.png', '.json');
+            this.load.json(spriteKey + '_json', jsonPath);
+            await new Promise<void>((resolve) => {
+              this.load.once('complete', () => resolve());
+              this.load.start();
+            });
+            const asepriteJson = this.cache.json.get(spriteKey + '_json');
+            let frameWidth = 50;
+            let frameHeight = 100;
+            if (asepriteJson) {
+              const firstFrame = Object.values(asepriteJson.frames)[0] as AsepriteFrame;
+              frameWidth = firstFrame.frame.w;
+              frameHeight = firstFrame.frame.h;
+            }
+            this.load.spritesheet(spriteKey, sheetPath, { frameWidth, frameHeight });
+            await new Promise<void>((resolve) => {
+              this.load.once('complete', () => resolve());
+              this.load.start();
+            });
+            if (asepriteJson) {
+              this.createAsepriteAnimations(spriteKey, asepriteJson);
+            }
+            shouldCreateSprite = true;
           }
         }
-        if (!spriteKey) continue;
+        if (!spriteKey || !shouldCreateSprite) continue; // Guard: skip if no valid sprite or animation
         const sprite = this.add
           .sprite(x, y, spriteKey, 0)
           .setOrigin(0.5, 1)
@@ -235,9 +238,6 @@ class VillageScene extends Phaser.Scene {
         this.setupInteractionSprite(sprite, interaction, isSpritesheet);
         this.interactionSprites[interaction.id] = sprite;
       }
-
-      // Render interactions after everything is loaded
-      this.renderInteractions();
     } finally {
       this.isRenderingInteractions = false;
     }
@@ -357,14 +357,15 @@ class VillageScene extends Phaser.Scene {
       : '/content/' + anim.spritesheet;
     const sheetKey = (sheetPath.split('/').pop() || '').replace('.png', '');
     const animKey = `${sheetKey}_${anim.name}`;
-    if (this.anims.exists(animKey)) {
-      sprite.anims.play(animKey, true);
-      if (onComplete) {
-        sprite.on('animationcomplete', onComplete, this);
-      }
-    } else {
+    if (!this.anims.exists(animKey)) {
+      // If animation does not exist, or is single-frame, just set frame 0
       sprite.setFrame(0);
       if (onComplete) onComplete();
+      return;
+    }
+    sprite.anims.play(animKey, true);
+    if (onComplete) {
+      sprite.on('animationcomplete', onComplete, this);
     }
   }
 
@@ -386,8 +387,27 @@ class VillageScene extends Phaser.Scene {
     }
     const width = this.sys.game.config.width as number;
     const height = this.sys.game.config.height as number;
-    const dialogWidth = 400;
-    const dialogHeight = 180;
+    // Dynamically size dialog based on text
+    const tempText = this.add
+      .text(0, 0, text, {
+        color: '#fff',
+        fontSize: '20px',
+        wordWrap: { width: 500 },
+        align: 'center',
+      })
+      .setVisible(false);
+    const textMetrics = tempText.getBounds();
+    const dialogWidth = Math.max(400, textMetrics.width + 60);
+    const dialogHeight = Math.max(180, textMetrics.height + 120);
+    tempText.destroy();
+    // Dynamically size button based on buttonText
+    const tempButtonText = this.add
+      .text(0, 0, buttonText || 'OK', { color: '#fff', fontSize: '18px' })
+      .setVisible(false);
+    const buttonTextMetrics = tempButtonText.getBounds();
+    const buttonWidth = Math.max(120, buttonTextMetrics.width + 40);
+    const buttonHeight = Math.max(40, buttonTextMetrics.height + 20);
+    tempButtonText.destroy();
     const container = this.add.container(0, 0);
     // Background
     const bg = this.add.rectangle(width / 2, height / 2, dialogWidth, dialogHeight, 0x222222, 0.9);
@@ -405,11 +425,21 @@ class VillageScene extends Phaser.Scene {
     dialogText.setDepth(1000);
     // Button
     const button = this.add
-      .rectangle(width / 2, height / 2 + 40, 120, 40, 0x4444aa, 1)
+      .rectangle(
+        width / 2,
+        height / 2 + dialogHeight / 2 - buttonHeight / 2 - 20,
+        buttonWidth,
+        buttonHeight,
+        0x4444aa,
+        1
+      )
       .setInteractive({ useHandCursor: true });
     button.setDepth(1000);
     const buttonTextObj = this.add
-      .text(width / 2, height / 2 + 40, buttonText || 'OK', { color: '#fff', fontSize: '18px' })
+      .text(width / 2, height / 2 + dialogHeight / 2 - buttonHeight / 2 - 20, buttonText || 'OK', {
+        color: '#fff',
+        fontSize: '18px',
+      })
       .setOrigin(0.5, 0.5);
     buttonTextObj.setDepth(1000);
     button.on('pointerdown', () => {
@@ -586,7 +616,7 @@ class VillageScene extends Phaser.Scene {
       const durations: number[] = [];
       // Robust: filter frame names for this tag and sort by numeric suffix
       const tagFrameNames = frameNames
-        .filter((name) => name.startsWith(`Pig #${tag.name} `))
+        .filter((name) => name.includes(`#${tag.name} `))
         .sort((a, b) => {
           const getNum = (s: string) => parseInt(s.match(/ (\d+)\.aseprite$/)?.[1] ?? '0', 10);
           return getNum(a) - getNum(b);
@@ -594,8 +624,10 @@ class VillageScene extends Phaser.Scene {
       for (let i = 0; i < tagFrameNames.length; i++) {
         const frameName = tagFrameNames[i];
         const frameIndex = frameNames.indexOf(frameName);
+        const frameData = asepriteJson.frames[frameName];
+        if (!frameData) continue; // Skip missing frames
         frames.push({ key: sheetKey, frame: frameIndex });
-        durations.push(asepriteJson.frames[frameName].duration);
+        durations.push(frameData.duration);
       }
       if (!this.anims.exists(animKey)) {
         this.anims.create({

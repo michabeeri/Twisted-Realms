@@ -11,20 +11,26 @@
   "movement_matrix": "scenes/village/assets/village-movement-matrix.png",
   "cover": "scenes/village/assets/village-cover.png",
   "player_position": { "x": 640, "y": 360 },
+  "map_access_condition": { "inventory": { "0": true } },
   "interactions": [
     {
-      "id": "statue",
-      "position": { "x": 600, "y": 400 },
-      "sprite": "scenes/village/assets/statue.png",
+      "id": "oldman",
+      "position": { "x": 300, "y": 250 },
+      "idle_animation": [
+        {
+          "spritesheet": "scenes/village/assets/oldman.png",
+          "name": "idle"
+        }
+      ],
       "condition": { "inventory": { "0": false } },
-      "player_location": { "x": 550, "y": 350 },
+      "player_location": { "x": 230, "y": 270 },
       "click": [
         {
           "sound": "scenes/village/assets/thud.mp3",
-          "dialog": "A rusty key lies among the rubble.",
-          "dialog_button": "Take",
+          "dialog": "When Zevrul stirs or Morvash whispers, do not answer. The one who listens wears your face..",
+          "dialog_button": "It ends, either way.",
           "update_state": {
-            "game_state": "key_found",
+            "game_state": "quest_started",
             "inventory": { "0": true }
           }
         }
