@@ -10,42 +10,42 @@
     },
     {
       "spritesheet": "assets/pig_spritesheet.png",
-      "name": "idle",
+      "name": "R_walk",
       "type": "system_right"
     },
     {
       "spritesheet": "assets/pig_spritesheet.png",
-      "name": "idle",
+      "name": "L_walk",
       "type": "system_left"
     },
     {
       "spritesheet": "assets/pig_spritesheet.png",
-      "name": "idle",
+      "name": "R_walk",
       "type": "system_up"
     },
     {
       "spritesheet": "assets/pig_spritesheet.png",
-      "name": "idle",
+      "name": "R_walk",
       "type": "system_down"
     },
     {
       "spritesheet": "assets/pig_spritesheet.png",
-      "name": "idle",
+      "name": "L_walk",
       "type": "system_up_left"
     },
     {
       "spritesheet": "assets/pig_spritesheet.png",
-      "name": "idle",
+      "name": "R_walk",
       "type": "system_up_right"
     },
     {
       "spritesheet": "assets/pig_spritesheet.png",
-      "name": "idle",
+      "name": "L_walk",
       "type": "system_down_left"
     },
     {
       "spritesheet": "assets/pig_spritesheet.png",
-      "name": "idle",
+      "name": "R_walk",
       "type": "system_down_right"
     }
   ]
