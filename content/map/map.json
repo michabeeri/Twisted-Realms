@@ -1,0 +1,29 @@
+{
+  "background": "map/assets/map.png",
+  "width": 1280,
+  "height": 720,
+  "interactions": [
+    {
+      "id": "village",
+      "position": { "x": 100, "y": 200 },
+      "sprite": "map/assets/house.png",
+      "click": [
+        {
+          "player_location": { "x": 100, "y": 200 },
+          "target_scene": "village"
+        }
+      ]
+    },
+    {
+      "id": "forest",
+      "position": { "x": 300, "y": 250 },
+      "sprite": "map/assets/forest_icon.png",
+      "click": [
+        {
+          "player_location": { "x": 300, "y": 250 },
+          "target_scene": "forest"
+        }
+      ]
+    }
+  ]
+}

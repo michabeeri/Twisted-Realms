@@ -1,0 +1,52 @@
+{
+  "character_movement_speed": 200,
+  "screen_width": 1280,
+  "screen_height": 720,
+  "player_animations": [
+    {
+      "spritesheet": "assets/pig_spritesheet.png",
+      "name": "idle",
+      "type": "system_idle"
+    },
+    {
+      "spritesheet": "assets/pig_spritesheet.png",
+      "name": "idle",
+      "type": "system_right"
+    },
+    {
+      "spritesheet": "assets/pig_spritesheet.png",
+      "name": "idle",
+      "type": "system_left"
+    },
+    {
+      "spritesheet": "assets/pig_spritesheet.png",
+      "name": "idle",
+      "type": "system_up"
+    },
+    {
+      "spritesheet": "assets/pig_spritesheet.png",
+      "name": "idle",
+      "type": "system_down"
+    },
+    {
+      "spritesheet": "assets/pig_spritesheet.png",
+      "name": "idle",
+      "type": "system_up_left"
+    },
+    {
+      "spritesheet": "assets/pig_spritesheet.png",
+      "name": "idle",
+      "type": "system_up_right"
+    },
+    {
+      "spritesheet": "assets/pig_spritesheet.png",
+      "name": "idle",
+      "type": "system_down_left"
+    },
+    {
+      "spritesheet": "assets/pig_spritesheet.png",
+      "name": "idle",
+      "type": "system_down_right"
+    }
+  ]
+}

@@ -1,10 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import Phaser from 'phaser';
 import { useInventoryStore } from '../stores/inventoryStore';
 import { useGameStateStore } from '../stores/gameStateStore';
 
 interface SceneProps {
   sceneId: string;
+  draggedItem?: number | null;
 }
 
 const CONFIG_JSON_PATH = '/content/config.json';
@@ -70,11 +71,11 @@ interface AsepriteJSON {
 }
 
 class VillageScene extends Phaser.Scene {
-  private sceneData: VillageSceneData | undefined;
+  public sceneData: VillageSceneData | undefined;
   private background?: Phaser.GameObjects.Image;
   private player?: Phaser.GameObjects.Sprite;
   private soundtrack?: Phaser.Sound.BaseSound;
-  private interactionSprites: Record<string, Phaser.GameObjects.Sprite> = {};
+  public interactionSprites: Record<string, Phaser.GameObjects.Sprite> = {};
   private dialogContainer?: Phaser.GameObjects.Container;
   private soundtrackStarted = false;
   private asepriteData: Record<string, AsepriteJSON> = {};
@@ -170,8 +171,19 @@ class VillageScene extends Phaser.Scene {
     // Remove old interaction sprites
     Object.values(this.interactionSprites).forEach((sprite) => sprite.destroy());
     this.interactionSprites = {};
+    // Only log inventory and matchesCondition for debugging door visibility
+    console.log('DEBUG: currentState.inventory', this.currentState.inventory);
     for (const interaction of interactions) {
-      if (!this.matchesCondition(interaction.condition, this.currentState)) continue;
+      const matches = this.matchesCondition(interaction.condition, this.currentState);
+      console.log(
+        'DEBUG: interaction',
+        interaction.id,
+        'condition',
+        interaction.condition,
+        'matches',
+        matches
+      );
+      if (!matches) continue;
       const x = interaction.position?.x ?? 0;
       const y = interaction.position?.y ?? 0;
       let spriteKey = '';
@@ -276,11 +288,15 @@ class VillageScene extends Phaser.Scene {
     });
   }
 
-  private triggerInteraction(sprite: Phaser.GameObjects.Sprite, interaction: VillageInteraction) {
+  public triggerInteraction(
+    sprite: Phaser.GameObjects.Sprite,
+    interaction: VillageInteraction,
+    clickDefOverride?: any
+  ) {
     sprite.disableInteractive();
     sprite.anims.stop();
     this.stopInteractionSound();
-    const clickDef = interaction.click && interaction.click[0];
+    const clickDef = clickDefOverride || (interaction.click && interaction.click[0]);
     if (clickDef) {
       if (clickDef.sound) {
         this.sound.play('thud');
@@ -410,6 +426,10 @@ class VillageScene extends Phaser.Scene {
   }
 
   async create() {
+    // Use the initial state passed from React if available
+    if (this.initialState) {
+      this.currentState = this.initialState;
+    }
     console.log('Phaser create() called');
     // Log all JSON cache keys
     console.log('Cache keys:', this.cache.json.getKeys());
@@ -809,7 +829,17 @@ class VillageScene extends Phaser.Scene {
   }
 }
 
-export function Scene({ sceneId }: SceneProps) {
+// Type guard for clickDef with condition
+function hasCondition(def: unknown): def is { condition: { used_item?: number } } {
+  return (
+    typeof def === 'object' &&
+    def !== null &&
+    'condition' in def &&
+    typeof (def as { condition?: unknown }).condition === 'object'
+  );
+}
+
+export function Scene({ sceneId, draggedItem }: SceneProps) {
   const gameRef = useRef<HTMLDivElement>(null);
   const phaserSceneRef = useRef<VillageScene | null>(null);
   const inventory = useInventoryStore((s) => s.inventory);
@@ -817,13 +847,6 @@ export function Scene({ sceneId }: SceneProps) {
   const removeItem = useInventoryStore((s) => s.removeItem);
   const game_state = useGameStateStore((s) => s.game_state);
   const setGameState = useGameStateStore((s) => s.setGameState);
-
-  // Store the initial state in a ref to pass to Phaser
-  const initialStateRef = useRef({
-    game_state,
-    inventory,
-  });
-  initialStateRef.current = { game_state, inventory };
 
   // Inventory update handler
   const handleInventoryUpdate = (updates: Record<string, boolean>) => {
@@ -841,19 +864,73 @@ export function Scene({ sceneId }: SceneProps) {
     setGameState(newState);
   };
 
+  // Helper to get Phaser scene instance
+  const getPhaserScene = () => phaserSceneRef.current;
+
+  // Drop handler for drag-and-drop inventory usage
+  const handleDrop = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      if (draggedItem == null) return;
+      const scene = getPhaserScene();
+      if (!scene || !scene.sceneData) return;
+      // Get mouse position relative to the canvas
+      const rect = gameRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      // Find the topmost interaction under the mouse
+      let found: { sprite: Phaser.GameObjects.Sprite; interaction: VillageInteraction } | null =
+        null;
+      for (const [id, sprite] of Object.entries(scene.interactionSprites)) {
+        const bounds = sprite.getBounds();
+        if (
+          mouseX >= bounds.left &&
+          mouseX <= bounds.right &&
+          mouseY >= bounds.top &&
+          mouseY <= bounds.bottom
+        ) {
+          found = { sprite, interaction: scene.sceneData.interactions.find((i) => i.id === id)! };
+          break;
+        }
+      }
+      if (found) {
+        // Simulate a click with used_item
+        // Find the best click object with used_item condition
+        const clickDefs = found.interaction.click || [];
+        // Find the last clickDef where condition.used_item === draggedItem
+        let best: (typeof clickDefs)[0] | undefined;
+        for (const def of clickDefs) {
+          if (
+            hasCondition(def) &&
+            'used_item' in def.condition &&
+            def.condition.used_item === draggedItem
+          ) {
+            best = def;
+          }
+        }
+        if (best) {
+          // Patch: call triggerInteraction with a custom clickDef
+          // We'll call the internal triggerInteraction logic
+          // (simulate as if this was a click with used_item)
+          scene.triggerInteraction(found.sprite, found.interaction, best);
+        }
+      }
+    },
+    [draggedItem]
+  );
+
   useEffect(() => {
     let game: Phaser.Game | null = null;
     if (gameRef.current) {
       // Custom scene class instance
       const villageScene = new VillageScene();
-      // Set initial state before Phaser calls create()
-      villageScene.setInitialState(initialStateRef.current);
+      // Always use the latest game_state and inventory when creating the scene
+      villageScene.setInitialState({ game_state, inventory });
       // Pass inventory and game state update callbacks
       villageScene.onInventoryUpdate = handleInventoryUpdate;
       villageScene.onGameStateUpdate = handleGameStateUpdate;
       // Dynamically set the scene JSON path
       const sceneJsonPath = `/content/scenes/${sceneId}/scene.json`;
-      // @ts-expect-error: Phaser sys.settings.data is not typed but is used for passing sceneJsonPath
       villageScene.sys.settings.data = { sceneJsonPath };
       game = new Phaser.Game({
         type: Phaser.AUTO,
@@ -878,7 +955,10 @@ export function Scene({ sceneId }: SceneProps) {
 
   // Update interactions when inventory or game state changes
   useEffect(() => {
+    // Only log inventory and updateSceneState for debugging door visibility
+    console.log('DEBUG: React Scene useEffect inventory', inventory);
     if (phaserSceneRef.current) {
+      console.log('DEBUG: React Scene calling updateSceneState', { game_state, inventory });
       phaserSceneRef.current.updateSceneState({
         game_state,
         inventory,
@@ -900,6 +980,20 @@ export function Scene({ sceneId }: SceneProps) {
         alignItems: 'center',
         justifyContent: 'center',
       }}
-    />
+    >
+      {/* Drag-and-drop overlay for inventory items */}
+      {draggedItem !== null && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 10,
+            cursor: 'copy',
+          }}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={handleDrop}
+        />
+      )}
+    </div>
   );
 }

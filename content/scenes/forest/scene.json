@@ -1,0 +1,34 @@
+{
+  "scene_id": "forest",
+  "width": 1280,
+  "height": 720,
+  "soundtrack": "scenes/forest/assets/forest_ambience.mp3",
+  "backgrounds": [
+    {
+      "image": "scenes/forest/assets/forest.png"
+    }
+  ],
+  "movement_matrix": "scenes/forest/assets/forest-movement-matrix.png",
+  "cover": "scenes/forest/assets/forest-cover.png",
+  "player_position": { "x": 640, "y": 360 },
+  "interactions": [
+    {
+      "id": "door",
+      "position": { "x": 800, "y": 600 },
+      "player_location": { "x": 750, "y": 650 },
+      "sprite": "scenes/forest/assets/door.png",
+      "condition": { "inventory": { "0": true } },
+      "click": [
+        {
+          "dialog": "You need a key to open this door.",
+          "dialog_button": "OK"
+        },
+        {
+          "condition": { "used_item": 0 },
+          "dialog": "You won the game!",
+          "dialog_button": "Yay!"
+        }
+      ]
+    }
+  ]
+}

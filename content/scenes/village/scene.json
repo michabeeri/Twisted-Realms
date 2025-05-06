@@ -1,0 +1,34 @@
+{
+  "scene_id": "village",
+  "width": 1280,
+  "height": 720,
+  "soundtrack": "scenes/village/assets/village_ambience.mp3",
+  "backgrounds": [
+    {
+      "image": "scenes/village/assets/village.png"
+    }
+  ],
+  "movement_matrix": "scenes/village/assets/village-movement-matrix.png",
+  "cover": "scenes/village/assets/village-cover.png",
+  "player_position": { "x": 640, "y": 360 },
+  "interactions": [
+    {
+      "id": "statue",
+      "position": { "x": 600, "y": 400 },
+      "sprite": "scenes/village/assets/statue.png",
+      "condition": { "inventory": { "0": false } },
+      "player_location": { "x": 550, "y": 350 },
+      "click": [
+        {
+          "sound": "scenes/village/assets/thud.mp3",
+          "dialog": "A rusty key lies among the rubble.",
+          "dialog_button": "Take",
+          "update_state": {
+            "game_state": "key_found",
+            "inventory": { "0": true }
+          }
+        }
+      ]
+    }
+  ]
+}

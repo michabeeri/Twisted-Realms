@@ -1,0 +1,9 @@
+[
+  {
+    "item_id": "key",
+    "index": 0,
+    "name": "Rusty Key",
+    "icon": "content/assets/key_icon.png",
+    "tooltip": "Opens old locks"
+  }
+]
