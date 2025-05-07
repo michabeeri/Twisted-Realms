@@ -123,10 +123,10 @@ class VillageScene extends Phaser.Scene {
     // @ts-expect-error: Phaser sys.settings.data is not typed but is used for passing sceneJsonPath
     const sceneJsonPath =
       this.sys.settings.data?.sceneJsonPath || '/content/scenes/village/scene.json';
+    console.log('[Scene preload] Loading scene JSON from:', sceneJsonPath);
     this.load.json('scene', sceneJsonPath);
     this.load.json('config', CONFIG_JSON_PATH);
     this.load.audio('soundtrack', '/content/' + 'scenes/village/assets/village_ambience.mp3');
-    this.load.image('background', '/content/' + 'scenes/village/assets/village.png');
     this.load.image('cover', '/content/' + 'scenes/village/assets/village-cover.png');
     this.load.audio('thud', '/content/' + 'scenes/village/assets/thud.mp3');
     this.load.image(
@@ -460,16 +460,31 @@ class VillageScene extends Phaser.Scene {
     let sceneData;
     try {
       sceneData = this.cache.json.get('scene');
+      console.log('[Scene create] Loaded scene data:', sceneData);
     } catch (err) {
-      console.error('Error accessing sceneData from cache:', err);
+      console.error('[Scene create] Error accessing sceneData from cache:', err);
     }
     this.sceneData = sceneData;
-    if (!this.sceneData) return;
-    // Add background
+    if (!this.sceneData) {
+      console.error('[Scene create] sceneData is undefined or null!');
+      return;
+    }
+    // Dynamically load the correct background image
     const width = this.sceneData.width || 1280;
     const height = this.sceneData.height || 720;
+    const bgPath = this.sceneData.backgrounds[0].image.startsWith('/')
+      ? this.sceneData.backgrounds[0].image
+      : '/content/' + this.sceneData.backgrounds[0].image;
+    const bgKey = `sceneBackground_${this.sceneData.scene_id}`;
+    if (!this.textures.exists(bgKey)) {
+      this.load.image(bgKey, bgPath);
+      await new Promise<void>((resolve) => {
+        this.load.once('complete', () => resolve());
+        this.load.start();
+      });
+    }
     this.background = this.add
-      .image(width / 2, height / 2, 'background')
+      .image(width / 2, height / 2, bgKey)
       .setOrigin(0.5, 0.5)
       .setDepth(0);
     // Enable click-to-move on background
@@ -614,19 +629,13 @@ class VillageScene extends Phaser.Scene {
       const animKey = `${sheetKey}_${tag.name}`;
       const frames = [];
       const durations: number[] = [];
-      // Robust: filter frame names for this tag and sort by numeric suffix
-      const tagFrameNames = frameNames
-        .filter((name) => name.includes(`#${tag.name} `))
-        .sort((a, b) => {
-          const getNum = (s: string) => parseInt(s.match(/ (\d+)\.aseprite$/)?.[1] ?? '0', 10);
-          return getNum(a) - getNum(b);
-        });
+      // Select frames by index (from/to) instead of filtering by tag name
+      const tagFrameNames = frameNames.slice(tag.from, tag.to + 1);
       for (let i = 0; i < tagFrameNames.length; i++) {
         const frameName = tagFrameNames[i];
-        const frameIndex = frameNames.indexOf(frameName);
         const frameData = asepriteJson.frames[frameName];
         if (!frameData) continue; // Skip missing frames
-        frames.push({ key: sheetKey, frame: frameIndex });
+        frames.push({ key: sheetKey, frame: frameNames.indexOf(frameName) });
         durations.push(frameData.duration);
       }
       if (!this.anims.exists(animKey)) {

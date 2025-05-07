@@ -5,23 +5,23 @@
   "interactions": [
     {
       "id": "village",
-      "position": { "x": 100, "y": 200 },
-      "sprite": "map/assets/house.png",
+      "position": { "x": 60, "y": 630 },
+      "sprite": "map/assets/village.png",
       "click": [
         {
-          "player_location": { "x": 100, "y": 200 },
+          "player_location": { "x": 40, "y": 300 },
           "target_scene": "village"
         }
       ]
     },
     {
-      "id": "forest",
+      "id": "cave",
       "position": { "x": 300, "y": 250 },
-      "sprite": "map/assets/forest_icon.png",
+      "sprite": "map/assets/house.png",
       "click": [
         {
           "player_location": { "x": 300, "y": 250 },
-          "target_scene": "forest"
+          "target_scene": "cave"
         }
       ]
     }

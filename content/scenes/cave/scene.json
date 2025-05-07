@@ -1,0 +1,32 @@
+{
+  "scene_id": "cave",
+  "width": 1280,
+  "height": 720,
+  "soundtrack": "scenes/cave/assets/cave_ambience.mp3",
+  "backgrounds": [
+    {
+      "image": "scenes/cave/assets/cave.png"
+    }
+  ],
+  "movement_matrix": "scenes/cave/assets/cave.png",
+  "player_position": { "x": 800, "y": 600 },
+  "interactions": [
+    {
+      "id": "demon",
+      "position": { "x": 700, "y": 400 },
+      "idle_animation": [
+        {
+          "spritesheet": "scenes/cave/assets/demon.png",
+          "name": "idle"
+        }
+      ],
+      "player_location": { "x": 230, "y": 270 },
+      "click": [
+        {
+          "dialog": "When Zevrul stirs or Morvash whispers, do not answer. The one who listens wears your face..",
+          "dialog_button": "It ends, either way."
+        }
+      ]
+    }
+  ]
+}

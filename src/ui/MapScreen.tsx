@@ -24,8 +24,9 @@ interface MapScreenProps {
 
 const PLAYER_SPRITE_PATH = 'assets/pig_spritesheet.png';
 const PLAYER_SPRITE_JSON = 'assets/pig_spritesheet.json';
-const PLAYER_MARKER_WIDTH = 50 / 3; // original frame width divided by 3
-const PLAYER_MARKER_HEIGHT = 100 / 3; // original frame height divided by 3
+const PLAYER_MARKER_WIDTH = 64;
+const PLAYER_MARKER_HEIGHT = 128;
+const PLAYER_MARKER_SCALE = 1 / 3;
 const MARKER_SPEED = (400 + 200 / 3) / 2; // middle between previous (400) and 3x slower (67)
 const FADE_DURATION = 500; // ms
 
@@ -44,8 +45,8 @@ function PlayerMarkerPhaser({ x, y, direction }: { x: number; y: number; directi
     class MarkerScene extends Phaser.Scene {
       preload() {
         this.load.spritesheet('player', `/content/${PLAYER_SPRITE_PATH}`, {
-          frameWidth: 50,
-          frameHeight: 100,
+          frameWidth: PLAYER_MARKER_WIDTH,
+          frameHeight: PLAYER_MARKER_HEIGHT,
         });
         this.load.json('player_json', `/content/${PLAYER_SPRITE_JSON}`);
       }
@@ -77,7 +78,7 @@ function PlayerMarkerPhaser({ x, y, direction }: { x: number; y: number; directi
         markerSprite = this.add
           .sprite(PLAYER_MARKER_WIDTH / 2, PLAYER_MARKER_HEIGHT, 'player', 0)
           .setOrigin(0.5, 1)
-          .setScale(1 / 3)
+          .setScale(PLAYER_MARKER_SCALE)
           .setDepth(1);
         animKey = `player_${direction}`;
         if (this.anims.exists(animKey)) {
@@ -121,9 +122,9 @@ function PlayerMarkerPhaser({ x, y, direction }: { x: number; y: number; directi
       style={{
         position: 'absolute',
         left: x + 8,
-        top: y - PLAYER_MARKER_HEIGHT * 0.8,
-        width: PLAYER_MARKER_WIDTH,
-        height: PLAYER_MARKER_HEIGHT,
+        top: y - PLAYER_MARKER_HEIGHT * PLAYER_MARKER_SCALE * 0.8,
+        width: PLAYER_MARKER_WIDTH * PLAYER_MARKER_SCALE,
+        height: PLAYER_MARKER_HEIGHT * PLAYER_MARKER_SCALE,
         zIndex: 2010,
         pointerEvents: 'none',
       }}
