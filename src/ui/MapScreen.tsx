@@ -27,6 +27,8 @@ const PLAYER_SPRITE_JSON = 'assets/pig_spritesheet.json';
 const PLAYER_MARKER_WIDTH = 64;
 const PLAYER_MARKER_HEIGHT = 128;
 const PLAYER_MARKER_SCALE = 1 / 3;
+const PLAYER_MARKER_SCALE_X = PLAYER_MARKER_WIDTH * PLAYER_MARKER_SCALE;
+const PLAYER_MARKER_SCALE_Y = PLAYER_MARKER_HEIGHT * PLAYER_MARKER_SCALE;
 const MARKER_SPEED = (400 + 200 / 3) / 2; // middle between previous (400) and 3x slower (67)
 const FADE_DURATION = 500; // ms
 
@@ -41,7 +43,15 @@ function PlayerMarkerPhaser({ x, y, direction }: { x: number; y: number; directi
   useEffect(() => {
     if (!phaserRef.current) return;
     let markerSprite: Phaser.GameObjects.Sprite | null = null;
-    let animKey = '';
+    // Map game direction to animation tag
+    const directionToAnimTag: Record<string, string> = {
+      system_idle: 'idle',
+      system_right: 'R_walk',
+      system_left: 'L_walk',
+      // Add more if you have more tags (e.g., up/down)
+    };
+    const animTag = directionToAnimTag[direction] || 'idle';
+    const animKey = `player_${animTag}`;
     class MarkerScene extends Phaser.Scene {
       preload() {
         this.load.spritesheet('player', `/content/${PLAYER_SPRITE_PATH}`, {
@@ -85,12 +95,14 @@ function PlayerMarkerPhaser({ x, y, direction }: { x: number; y: number; directi
           .setOrigin(0.5, 1)
           .setScale(PLAYER_MARKER_SCALE)
           .setDepth(1);
-        animKey = `player_${direction}`;
         if (this.anims.exists(animKey)) {
           markerSprite.anims.play(animKey, true);
         }
       }
       update() {
+        // Update animation if direction changes
+        const animTag = directionToAnimTag[direction] || 'idle';
+        const animKey = `player_${animTag}`;
         if (
           markerSprite &&
           markerSprite.anims.currentAnim &&
@@ -126,10 +138,10 @@ function PlayerMarkerPhaser({ x, y, direction }: { x: number; y: number; directi
       ref={phaserRef}
       style={{
         position: 'absolute',
-        left: x - (PLAYER_MARKER_WIDTH * PLAYER_MARKER_SCALE) / 2,
-        top: y - PLAYER_MARKER_HEIGHT * PLAYER_MARKER_SCALE,
-        width: PLAYER_MARKER_WIDTH * PLAYER_MARKER_SCALE,
-        height: PLAYER_MARKER_HEIGHT * PLAYER_MARKER_SCALE,
+        left: x - PLAYER_MARKER_SCALE_X / 2,
+        top: y - PLAYER_MARKER_SCALE_Y,
+        width: PLAYER_MARKER_SCALE_X,
+        height: PLAYER_MARKER_SCALE_Y,
         zIndex: 2010,
         pointerEvents: 'none',
       }}
