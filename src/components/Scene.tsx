@@ -234,7 +234,7 @@ class VillageScene extends Phaser.Scene {
           .sprite(x, y, spriteKey, 0)
           .setOrigin(0.5, 1)
           .setInteractive({ useHandCursor: true })
-          .setDepth(1);
+          .setDepth(y);
         this.setupInteractionSprite(sprite, interaction, isSpritesheet);
         this.interactionSprites[interaction.id] = sprite;
       }
@@ -567,7 +567,7 @@ class VillageScene extends Phaser.Scene {
         : '/content/' + firstAnim.spritesheet;
       playerSheetKey = (firstSheetPath.split('/').pop() || '').replace('.png', '');
     }
-    this.player = this.add.sprite(px, py, playerSheetKey, 0).setOrigin(0.5, 1).setDepth(1);
+    this.player = this.add.sprite(px, py, playerSheetKey, 0).setOrigin(0.5, 1).setDepth(py);
     if (this.player) {
       this.playPlayerAnimation('system_idle');
     }
@@ -878,6 +878,9 @@ class VillageScene extends Phaser.Scene {
     if (this.lastDirection !== direction) {
       useGameStateStore.getState().setPlayerDirection(direction);
       this.lastDirection = direction;
+    }
+    if (this.player) {
+      this.player.setDepth(this.player.y);
     }
   }
 }

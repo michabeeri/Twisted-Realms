@@ -9,18 +9,18 @@
       "sprite": "map/assets/village.png",
       "click": [
         {
-          "player_location": { "x": 40, "y": 300 },
+          "player_location": { "x": 300, "y": 250 },
           "target_scene": "village"
         }
       ]
     },
     {
       "id": "cave",
-      "position": { "x": 300, "y": 250 },
-      "sprite": "map/assets/house.png",
+      "position": { "x": 270, "y": 620 },
+      "sprite": "map/assets/cave.png",
       "click": [
         {
-          "player_location": { "x": 300, "y": 250 },
+          "player_location": { "x": 60, "y": 630 },
           "target_scene": "cave"
         }
       ]

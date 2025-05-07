@@ -76,7 +76,12 @@ function PlayerMarkerPhaser({ x, y, direction }: { x: number; y: number; directi
           }
         }
         markerSprite = this.add
-          .sprite(PLAYER_MARKER_WIDTH / 2, PLAYER_MARKER_HEIGHT, 'player', 0)
+          .sprite(
+            (PLAYER_MARKER_WIDTH * PLAYER_MARKER_SCALE) / 2,
+            PLAYER_MARKER_HEIGHT * PLAYER_MARKER_SCALE,
+            'player',
+            0
+          )
           .setOrigin(0.5, 1)
           .setScale(PLAYER_MARKER_SCALE)
           .setDepth(1);
@@ -121,8 +126,8 @@ function PlayerMarkerPhaser({ x, y, direction }: { x: number; y: number; directi
       ref={phaserRef}
       style={{
         position: 'absolute',
-        left: x + 8,
-        top: y - PLAYER_MARKER_HEIGHT * PLAYER_MARKER_SCALE * 0.8,
+        left: x - (PLAYER_MARKER_WIDTH * PLAYER_MARKER_SCALE) / 2,
+        top: y - PLAYER_MARKER_HEIGHT * PLAYER_MARKER_SCALE,
         width: PLAYER_MARKER_WIDTH * PLAYER_MARKER_SCALE,
         height: PLAYER_MARKER_HEIGHT * PLAYER_MARKER_SCALE,
         zIndex: 2010,
