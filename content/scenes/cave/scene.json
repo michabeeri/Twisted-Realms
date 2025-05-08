@@ -8,7 +8,6 @@
       "image": "scenes/cave/assets/cave.png"
     }
   ],
-  "movement_matrix": "scenes/cave/assets/cave.png",
   "player_position": { "x": 800, "y": 600 },
   "interactions": [
     {
@@ -20,7 +19,7 @@
           "name": "idle"
         }
       ],
-      "player_location": { "x": 230, "y": 270 },
+      "player_location": { "x": 650, "y": 430 },
       "click": [
         {
           "dialog": "When Zevrul stirs or Morvash whispers, do not answer. The one who listens wears your face..",

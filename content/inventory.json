@@ -1,9 +1,9 @@
 [
   {
-    "item_id": "key",
+    "item_id": "map",
     "index": 0,
-    "name": "Rusty Key",
+    "name": "Damned Map",
     "icon": "content/assets/key_icon.png",
-    "tooltip": "Opens old locks"
+    "tooltip": "A map of the Damned"
   }
 ]

@@ -27,8 +27,8 @@
       "click": [
         {
           "sound": "scenes/village/assets/thud.mp3",
-          "dialog": "When Zevrul stirs or Morvash whispers, do not answer. The one who listens wears your face..",
-          "dialog_button": "It ends, either way.",
+          "dialog": "Take this map, forged in shadow and forgotten time...",
+          "dialog_button": "!!!",
           "update_state": {
             "game_state": "quest_started",
             "inventory": { "0": true }

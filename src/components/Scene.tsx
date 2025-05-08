@@ -126,7 +126,6 @@ class VillageScene extends Phaser.Scene {
     console.log('[Scene preload] Loading scene JSON from:', sceneJsonPath);
     this.load.json('scene', sceneJsonPath);
     this.load.json('config', CONFIG_JSON_PATH);
-    this.load.audio('soundtrack', '/content/' + 'scenes/village/assets/village_ambience.mp3');
     this.load.image('cover', '/content/' + 'scenes/village/assets/village-cover.png');
     this.load.audio('thud', '/content/' + 'scenes/village/assets/thud.mp3');
     this.load.image(
@@ -616,9 +615,60 @@ class VillageScene extends Phaser.Scene {
           }
         }
       }
+    } else {
+      // No movement matrix: allow movement everywhere
+      this.gridWidth = Math.ceil((this.sceneData.width || 1280) / VillageScene.GRID_RES);
+      this.gridHeight = Math.ceil((this.sceneData.height || 720) / VillageScene.GRID_RES);
+      this.coarseWalkabilityGrid = Array.from({ length: this.gridHeight }, () =>
+        Array(this.gridWidth).fill(true)
+      );
     }
     // Render interactions after everything is loaded
     this.renderInteractions();
+
+    // Dynamically load and play the correct soundtrack
+    if (this.sceneData.soundtrack) {
+      const soundtrackKey = `soundtrack_${this.sceneData.scene_id}`;
+      if (!this.cache.audio.exists(soundtrackKey)) {
+        this.load.audio(soundtrackKey, '/content/' + this.sceneData.soundtrack);
+        await new Promise<void>((resolve) => {
+          this.load.once('complete', () => resolve());
+          this.load.start();
+        });
+      }
+      // Stop previous soundtrack if any
+      if (this.soundtrack && this.soundtrack.isPlaying) {
+        this.soundtrack.stop();
+        this.soundtrack.destroy();
+      }
+      this.soundtrack = this.sound.add(soundtrackKey, { loop: true, volume: 0.5 });
+      const playResult = this.soundtrack.play();
+      function isPromise<T = unknown>(value: unknown): value is Promise<T> {
+        return !!value && typeof (value as Promise<T>).then === 'function';
+      }
+      if (isPromise(playResult)) {
+        playResult.catch(() => {
+          this.input.once('pointerdown', () => {
+            const soundManager = this.sound as
+              | Phaser.Sound.WebAudioSoundManager
+              | Phaser.Sound.NoAudioSoundManager
+              | Phaser.Sound.HTML5AudioSoundManager;
+            if (
+              'context' in soundManager &&
+              soundManager.context &&
+              typeof soundManager.context.resume === 'function'
+            ) {
+              soundManager.context.resume().then(() => {
+                this.soundtrack!.play();
+              });
+            } else {
+              this.soundtrack!.play();
+            }
+          });
+        });
+      }
+      this.soundtrackStarted = true;
+    }
   }
 
   private createAsepriteAnimations(sheetKey: string, asepriteJson: AsepriteJSON) {
@@ -654,6 +704,7 @@ class VillageScene extends Phaser.Scene {
   }
 
   private isWalkable(x: number, y: number): boolean {
+    if (!this.movementMatrixData && this.coarseWalkabilityGrid) return true;
     if (!this.movementMatrixData) return true;
     const px = Math.round(x);
     const py = Math.round(y);
@@ -688,7 +739,10 @@ class VillageScene extends Phaser.Scene {
     start: { x: number; y: number },
     end: { x: number; y: number }
   ): { x: number; y: number }[] {
-    if (!this.coarseWalkabilityGrid) return [];
+    if (!this.coarseWalkabilityGrid) {
+      // No grid: allow direct path
+      return [end];
+    }
     const width = this.gridWidth;
     const height = this.gridHeight;
     const inBounds = (x: number, y: number) => x >= 0 && y >= 0 && x < width && y < height;
@@ -881,6 +935,16 @@ class VillageScene extends Phaser.Scene {
     }
     if (this.player) {
       this.player.setDepth(this.player.y);
+    }
+  }
+
+  shutdown() {
+    // Stop and destroy soundtrack on scene shutdown
+    if (this.soundtrack) {
+      this.soundtrack.stop();
+      this.soundtrack.destroy();
+      this.soundtrack = undefined;
+      this.soundtrackStarted = false;
     }
   }
 }
