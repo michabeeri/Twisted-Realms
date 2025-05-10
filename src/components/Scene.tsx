@@ -233,7 +233,7 @@ class VillageScene extends Phaser.Scene {
           .sprite(x, y, spriteKey, 0)
           .setOrigin(0.5, 1)
           .setInteractive({ useHandCursor: true })
-          .setDepth(y);
+          .setDepth(1);
         this.setupInteractionSprite(sprite, interaction, isSpritesheet);
         this.interactionSprites[interaction.id] = sprite;
       }
@@ -271,6 +271,18 @@ class VillageScene extends Phaser.Scene {
     });
     // Click: use new click array format
     sprite.on('pointerdown', () => {
+      // Only allow pointerdown interaction if there is a clickDef with no used_item condition
+      const clickDefs = interaction.click || [];
+      const hasUnconditionalClick = clickDefs.some((def) => {
+        if (typeof def !== 'object' || def === null) return true;
+        if (!('condition' in def) || !def.condition) return true;
+        if (typeof def.condition !== 'object' || def.condition === null) return true;
+        return !('used_item' in def.condition);
+      });
+      if (!hasUnconditionalClick) {
+        // All clickDefs require used_item, so do nothing (force drag-and-drop only)
+        return;
+      }
       if (interaction.player_location) {
         const start = this.worldToGrid({
           x: Math.round(this.player!.x),
@@ -512,7 +524,7 @@ class VillageScene extends Phaser.Scene {
       this.cover = this.add
         .image(width / 2, height / 2, 'cover')
         .setOrigin(0.5, 0.5)
-        .setDepth(2);
+        .setDepth(3);
     }
     // Load player assets from config
     const config = this.cache.json.get('config');
@@ -566,7 +578,7 @@ class VillageScene extends Phaser.Scene {
         : '/content/' + firstAnim.spritesheet;
       playerSheetKey = (firstSheetPath.split('/').pop() || '').replace('.png', '');
     }
-    this.player = this.add.sprite(px, py, playerSheetKey, 0).setOrigin(0.5, 1).setDepth(py);
+    this.player = this.add.sprite(px, py, playerSheetKey, 0).setOrigin(0.5, 1).setDepth(2);
     if (this.player) {
       this.playPlayerAnimation('system_idle');
     }
@@ -934,7 +946,7 @@ class VillageScene extends Phaser.Scene {
       this.lastDirection = direction;
     }
     if (this.player) {
-      this.player.setDepth(this.player.y);
+      // Do not update player depth dynamically; keep at 2 so cover (3) is always on top
     }
   }
 
@@ -1023,7 +1035,7 @@ export function Scene({ sceneId, draggedItem }: SceneProps) {
           if (
             hasCondition(def) &&
             'used_item' in def.condition &&
-            def.condition.used_item === draggedItem
+            String(def.condition.used_item) === String(draggedItem)
           ) {
             best = def;
           }
